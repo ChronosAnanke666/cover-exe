@@ -1,0 +1,20 @@
+# ── 本机私有配置（含绝对路径，绝不提交）──
+config.local.json
+
+# ── 运行时数据 / 测试产物（体积大且含本机路径）──
+data/
+test-job.json
+
+# ── Python 缓存 ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ── 下载/中间产物 ──
+*.part
+*.tmp
+
+# ── 系统文件 ──
+.DS_Store
+Thumbs.db
+desktop.ini
