@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>万能翻唱 · 用任意音色唱任意歌</title>
+<style>
+  :root {
+    --bg: #0e1117; --card: #171c26; --card2: #1e2432; --line: #2a3242;
+    --txt: #e6e9ef; --sub: #9aa5b8; --accent: #7c6cff; --accent2: #43d6a0;
+    --warn: #ffb454; --err: #ff6b7a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--txt);
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; line-height: 1.6; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 80px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h1 .dot { color: var(--accent); }
+  .lead { color: var(--sub); margin: 0 0 24px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .card.full { grid-column: 1 / -1; }
+  .card h2 { font-size: 15px; margin: 0 0 14px; color: var(--accent2); letter-spacing: .5px; }
+  label { display: block; font-size: 13px; color: var(--sub); margin: 12px 0 5px; }
+  select, input[type=text], input[type=number] {
+    width: 100%; background: var(--card2); border: 1px solid var(--line); color: var(--txt);
+    border-radius: 9px; padding: 9px 11px; font-size: 14px; outline: none;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row > * { flex: 1; }
+  button {
+    background: var(--accent); color: #fff; border: 0; border-radius: 9px;
+    padding: 9px 16px; font-size: 14px; cursor: pointer; font-weight: 600; white-space: nowrap;
+  }
+  button:hover { filter: brightness(1.12); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.ghost { background: var(--card2); border: 1px solid var(--line); color: var(--txt); }
+  button.small { padding: 6px 11px; font-size: 12px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tab { flex: 1; text-align: center; background: var(--card2); border: 1px solid var(--line);
+    color: var(--sub); border-radius: 8px; padding: 8px; cursor: pointer; font-size: 13px; }
+  .tab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .hidden { display: none; }
+  .cands { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; max-height: 210px; overflow-y: auto; }
+  .cand { background: var(--card2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; cursor: pointer; font-size: 13px; }
+  .cand:hover { border-color: var(--accent); }
+  .cand .meta { color: var(--sub); font-size: 11px; }
+  .cand.picked { border-color: var(--accent2); background: #22302b; }
+  .hint { font-size: 11px; color: var(--sub); margin-top: 6px; }
+  .switch { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--txt); margin-top: 12px; }
+  .switch input { width: 16px; height: 16px; accent-color: var(--accent); }
+  .adv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+  .primary { width: 100%; padding: 13px; font-size: 16px; margin-top: 18px; }
+  .stages { display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 0; }
+  .stage { flex: 1; min-width: 90px; text-align: center; padding: 10px 6px; border-radius: 9px;
+    background: var(--card2); border: 1px solid var(--line); font-size: 12px; color: var(--sub); }
+  .stage.running { border-color: var(--warn); color: var(--warn); }
+  .stage.done { border-color: var(--accent2); color: var(--accent2); background: #1c2a25; }
+  .stage.failed { border-color: var(--err); color: var(--err); }
+  .bar { height: 5px; background: var(--card2); border-radius: 4px; overflow: hidden; margin: 6px 0 16px; }
+  .bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .4s; }
+  .log { background: #0a0d13; border: 1px solid var(--line); border-radius: 9px; padding: 12px;
+    font-family: Consolas, Monaco, monospace; font-size: 11px; color: #9fd6b0;
+    height: 220px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+  .status-line { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--sub); }
+  .badge { padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge.queued { background: #2a3242; color: var(--sub); }
+  .badge.running { background: #3a3020; color: var(--warn); }
+  .badge.done { background: #1c3a30; color: var(--accent2); }
+  .badge.failed { background: #3a2028; color: var(--err); }
+  .outputs { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .outputs a { text-decoration: none; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--card2); border: 1px solid var(--line); padding: 11px 20px; border-radius: 10px;
+    font-size: 13px; box-shadow: 0 8px 30px #0008; z-index: 99; display: none; }
+  .empty { color: var(--sub); font-size: 13px; text-align: center; padding: 30px; }
+  /* 环境检测面板 */
+  .env-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .env-score { font-size: 13px; color: var(--sub); }
+  .env-score b { color: var(--accent2); font-size: 18px; }
+  .env-sys { font-size: 12px; color: var(--sub); background: var(--card2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 11px; margin-bottom: 12px; line-height: 1.8; }
+  .env-sys .gpu { color: var(--accent2); }
+  .env-sys .gpu.no { color: var(--err); }
+  .env-list { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto; }
+  .env-row { display: flex; align-items: center; gap: 10px; background: var(--card2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 11px; font-size: 12px; }
+  .env-row .ico { width: 18px; text-align: center; flex: none; font-size: 14px; }
+  .env-row.ok .ico { color: var(--accent2); }
+  .env-row.miss .ico { color: var(--err); }
+  .env-row .nm { flex: 1; min-width: 0; }
+  .env-row .nm .t { color: var(--txt); }
+  .env-row .nm .p { color: var(--sub); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .env-row .sz { color: var(--sub); font-size: 11px; flex: none; }
+  .env-row .act { flex: none; display: flex; gap: 5px; }
+  .env-cat { font-size: 11px; color: var(--accent); letter-spacing: 1px; margin: 10px 0 4px; }
+  .env-bar { height: 6px; background: var(--card2); border-radius: 4px; overflow: hidden; margin: 8px 0 4px; }
+  .env-bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .4s; }
+  .env-note { font-size: 11px; color: var(--sub); margin-top: 10px; line-height: 1.7; }
+  .env-note code { background: #0a0d13; padding: 1px 5px; border-radius: 4px; color: #9fd6b0; }
+  .dlbox { margin-top: 10px; background: #0a0d13; border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px; font-family: Consolas, Monaco, monospace; font-size: 11px; color: #9fd6b0;
+    max-height: 160px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="dot">◆</span> 万能翻唱</h1>
+  <p class="lead">选一个音色 · 给一首歌 · 用这个声音唱出来。基于本机 Seed-VC + UVR5 流水线，全程本地运行。</p>
+
+  <!-- 环境检测 -->
+  <div class="card full" style="margin-bottom:18px">
+    <div class="env-head">
+      <h2 style="margin:0">⚙ 环境检测与依赖安装</h2>
+      <div class="row" style="flex:none">
+        <button class="ghost small" id="btnEnvScript">↓ 下载一键安装脚本</button>
+        <button class="ghost small" id="btnEnvCheck">重新检测</button>
+      </div>
+    </div>
+    <div class="env-sys" id="envSys">正在检测系统环境…</div>
+    <div class="env-score" id="envScore"></div>
+    <div class="env-bar" id="envBarWrap" style="display:none"><i id="envBar"></i></div>
+    <div class="env-list" id="envList"><div class="empty">加载中…</div></div>
+    <div class="dlbox" id="dlBox"></div>
+    <div class="env-note">
+      标 <b style="color:var(--accent2)">✓</b> 的依赖已就绪；标 <b style="color:var(--err)">✗</b> 的可点「下载」自动获取（模型走 HuggingFace 官方直链，支持断点续传；首次下载约 2.5 GB）。
+      整合包/源码类无法直链下载的，点「打开下载页」或下载顶部的一键安装脚本按提示补齐。
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- 音色 -->
+    <div class="card">
+      <h2>① 选择音色（复制谁的声音）</h2>
+      <label for="voiceSel">预设音色</label>
+      <select id="voiceSel"></select>
+      <div class="row" style="margin-top:10px">
+        <input type="text" id="newVoiceName" placeholder="新音色名，如 xiaoming">
+        <input type="file" id="newVoiceFile" accept="audio/*" style="display:none">
+        <button class="ghost small" id="btnPickVoice">选参考音</button>
+        <button class="ghost small" id="btnUploadVoice">添加</button>
+      </div>
+      <div class="hint">参考音 = 想复制的声音，一段干净的 10~30 秒人声 wav 最好。添加后会出现在下拉框。</div>
+    </div>
+
+    <!-- 歌曲来源 -->
+    <div class="card">
+      <h2>② 给一首歌</h2>
+      <div class="tabs">
+        <div class="tab on" data-src="bili">B站歌名</div>
+        <div class="tab" data-src="file">本地文件</div>
+        <div class="tab" data-src="bvid">B站链接</div>
+      </div>
+      <div id="src-bili">
+        <div class="row">
+          <input type="text" id="q" placeholder="输入歌名，如 千本樱">
+          <button class="ghost small" id="btnSearch">搜索</button>
+        </div>
+        <div class="cands" id="cands"></div>
+      </div>
+      <div id="src-file" class="hidden">
+        <input type="file" id="songFile" accept="audio/*">
+        <div class="hint" id="songFileHint">选一个本地音频文件（mp3/wav/m4a…）</div>
+      </div>
+      <div id="src-bvid" class="hidden">
+        <input type="text" id="bvid" placeholder="贴 B站链接或 BV 号">
+      </div>
+    </div>
+
+    <!-- 参数 -->
+    <div class="card">
+      <h2>③ 参数</h2>
+      <label class="switch"><input type="checkbox" id="preview" checked> 预览模式（先跑一段 40 秒试听，方向对再跑全曲）</label>
+      <div class="adv">
+        <div><label>起始秒</label><input type="number" id="previewFrom" value="60" min="0"></div>
+        <div><label>片段长(秒)</label><input type="number" id="previewSeconds" value="40" min="5"></div>
+        <div><label>扩散步数</label><input type="number" id="steps" value="30" min="10" max="60"></div>
+      </div>
+      <div class="adv" style="grid-template-columns: repeat(2,1fr)">
+        <div><label>CFG（越低越像音色）</label><input type="number" id="cfgRate" value="0.7" min="0.1" max="1" step="0.05"></div>
+        <div><label>人声增益(dB)</label><input type="number" id="gain" value="0" min="-10" max="10"></div>
+      </div>
+      <div class="adv" style="grid-template-columns: repeat(2,1fr)">
+        <div><label>降调(半音，负数降)</label><input type="number" id="pitchShift" value="0" min="-12" max="12" step="1"></div>
+        <div><label>自动音域适配</label><select id="autoF0"><option value="False">关</option><option value="True">开（音高贴合音色）</option></select></div>
+      </div>
+      <div class="hint">高音破音？把「降调」调到 -2 ~ -5，或打开「自动音域适配」。伴奏会自动同步移调，不会走调。全曲通常 5~10 分钟；预览约 1~3 分钟。</div>
+      <button class="primary" id="btnSing">开始翻唱</button>
+    </div>
+
+    <!-- 任务 -->
+    <div class="card">
+      <h2>④ 进度与成品</h2>
+      <div class="status-line">
+        <span id="runLabel">还没有任务</span>
+        <span class="badge queued" id="runBadge">待命</span>
+      </div>
+      <div class="bar"><i id="barFill"></i></div>
+      <div class="stages" id="stages">
+        <div class="stage" data-s="download">取源</div>
+        <div class="stage" data-s="separate">分离人声</div>
+        <div class="stage" data-s="convert">换声</div>
+        <div class="stage" data-s="mix">混音</div>
+        <div class="stage" data-s="export">导出</div>
+      </div>
+      <div class="outputs hidden" id="outputs"></div>
+      <label style="margin-top:12px">运行日志</label>
+      <div class="log" id="log">等待任务…</div>
+    </div>
+  </div>
+
+  <div class="card full" style="margin-top:18px">
+    <h2>历史任务</h2>
+    <div id="history" class="empty">加载中…</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let srcMode = 'bili';
+let picked = null;     // {bvid,title}
+let currentRun = null;
+let pollTimer = null;
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.style.display = 'block';
+  clearTimeout(t._t); t._t = setTimeout(() => t.style.display = 'none', 3000);
+}
+const STAGE_CN = { download: '取源', separate: '分离人声', convert: '换声', mix: '混音', export: '导出' };
+
+// ---- 音色库
+async function loadVoices() {
+  const r = await fetch('/api/voices').then((x) => x.json());
+  const sel = $('#voiceSel'); sel.innerHTML = '';
+  if (!r.ok || !r.voices.length) {
+    sel.innerHTML = '<option value="">没有音色，请先添加</option>'; return;
+  }
+  for (const v of r.voices) {
+    const o = document.createElement('option'); o.value = v.name; o.textContent = v.name; sel.appendChild(o);
+  }
+  if (r.voices.some((v) => v.name === 'dsh_main')) sel.value = 'dsh_main';
+}
+$('#btnPickVoice').onclick = () => $('#newVoiceFile').click();
+$('#newVoiceFile').onchange = () => {
+  const f = $('#newVoiceFile').files[0];
+  if (f && !$('#newVoiceName').value) $('#newVoiceName').value = f.name.replace(/\.[^.]+$/, '');
+};
+$('#btnUploadVoice').onclick = async () => {
+  const f = $('#newVoiceFile').files[0];
+  const name = $('#newVoiceName').value.trim();
+  if (!f) return toast('请先选一个参考音文件');
+  if (!name) return toast('请填音色名');
+  const fd = new FormData(); fd.append('name', name); fd.append('file', f, f.name);
+  toast('上传中…');
+  const r = await fetch('/api/voices/upload', { method: 'POST', body: fd }).then((x) => x.json());
+  if (!r.ok) return toast('失败：' + r.error);
+  toast('已添加音色 ' + r.name);
+  $('#newVoiceName').value = ''; $('#newVoiceFile').value = '';
+  await loadVoices(); $('#voiceSel').value = r.name;
+};
+
+// ---- 来源切换
+document.querySelectorAll('.tab').forEach((t) => {
+  t.onclick = () => {
+    document.querySelectorAll('.tab').forEach((x) => x.classList.remove('on'));
+    t.classList.add('on'); srcMode = t.dataset.src;
+    for (const m of ['bili', 'file', 'bvid']) $('#src-' + m).classList.toggle('hidden', m !== srcMode);
+  };
+});
+$('#btnSearch').onclick = async () => {
+  const q = $('#q').value.trim(); if (!q) return toast('输入歌名');
+  toast('搜索中…');
+  const r = await fetch('/api/source/search?q=' + encodeURIComponent(q)).then((x) => x.json());
+  const box = $('#cands'); box.innerHTML = ''; picked = null;
+  if (!r.ok || !r.candidates.length) { box.innerHTML = '<div class="empty">没搜到结果</div>'; return; }
+  for (const c of r.candidates) {
+    const d = document.createElement('div'); d.className = 'cand';
+    d.innerHTML = `<div>${c.title}</div><div class="meta">${c.author} · ${c.duration}s · 匹配分 ${c.score}</div>`;
+    d.onclick = () => {
+      document.querySelectorAll('.cand').forEach((x) => x.classList.remove('picked'));
+      d.classList.add('picked'); picked = { bvid: c.bvid, title: c.title };
+    };
+    box.appendChild(d);
+  }
+};
+$('#songFile').onchange = () => {
+  const f = $('#songFile').files[0];
+  $('#songFileHint').textContent = f ? '已选：' + f.name + '（' + (f.size / 1048576).toFixed(1) + ' MB）' : '选一个本地音频文件';
+};
+
+// ---- 起任务
+$('#btnSing').onclick = async () => {
+  let source = null;
+  if (srcMode === 'bili') {
+    if (!picked) return toast('请先搜索并点选一个版本');
+    source = { kind: 'bili', bvid: picked.bvid, query: picked.title };
+  } else if (srcMode === 'bvid') {
+    const v = $('#bvid').value.trim(); if (!v) return toast('贴一个链接或 BV 号');
+    source = { kind: 'bili', query: v };
+  } else {
+    const f = $('#songFile').files[0]; if (!f) return toast('先选一个本地文件');
+    toast('上传音频中…');
+    const fd = new FormData(); fd.append('file', f, f.name);
+    const up = await fetch('/api/source/upload', { method: 'POST', body: fd }).then((x) => x.json());
+    if (!up.ok) return toast('上传失败：' + up.error);
+    source = { kind: 'file', file: up.file, title: up.name };
+  }
+  const body = {
+    source, voice: $('#voiceSel').value,
+    preview: $('#preview').checked,
+    previewFrom: Number($('#previewFrom').value) || 60,
+    previewSeconds: Number($('#previewSeconds').value) || 40,
+    steps: Number($('#steps').value) || 30,
+    cfgRate: Number($('#cfgRate').value) || 0.7,
+    gain: Number($('#gain').value) || 0,
+    pitchShift: Number($('#pitchShift').value) || 0,
+    autoF0: $('#autoF0') ? $('#autoF0').value : 'False',
+  };
+  const r = await fetch('/api/sing', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((x) => x.json());
+  if (!r.ok) return toast('启动失败：' + r.error);
+  currentRun = r.runId;
+  $('#btnSing').disabled = true;
+  toast('任务已创建：' + r.runId);
+  startPoll();
+};
+
+// ---- 轮询
+function startPoll() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    if (!currentRun) return;
+    const [s, l] = await Promise.all([
+      fetch('/api/status?id=' + currentRun).then((x) => x.json()),
+      fetch('/api/log?id=' + currentRun).then((x) => x.json()),
+    ]);
+    if (s.ok) renderRun(s.run, s.queuePos);
+    if (l.ok) { const el = $('#log'); el.textContent = l.text; el.scrollTop = el.scrollHeight; }
+    if (s.ok && (s.run.status === 'done' || s.run.status === 'failed')) {
+      clearInterval(pollTimer); pollTimer = null; $('#btnSing').disabled = false;
+      loadHistory();
+      toast(s.run.status === 'done' ? '翻唱完成！' : '失败：' + (s.run.error || ''));
+    }
+  }, 2000);
+}
+function renderRun(run, queuePos) {
+  const status = run.status;
+  $('#runLabel').textContent = (run.meta?.title ? run.meta.title + ' · ' : '') + run.id;
+  const badge = $('#runBadge');
+  badge.className = 'badge ' + (status || 'queued');
+  badge.textContent = { queued: '排队中' + (queuePos > 0 ? ' (' + queuePos + ')' : ''), running: '进行中', done: '完成 ✓', failed: '失败' }[status] || status;
+  const order = ['download', 'separate', 'convert', 'mix', 'export'];
+  const doneCount = (run.stages || []).filter((s) => s.status === 'done').length;
+  $('#barFill').style.width = (status === 'done' ? 100 : doneCount / 5 * 100) + '%';
+  document.querySelectorAll('.stage').forEach((el) => {
+    const st = (run.stages || []).find((x) => x.name === el.dataset.s);
+    el.className = 'stage' + (st ? ' ' + st.status : '');
+  });
+  const out = $('#outputs');
+  if (status === 'done' && run.outputs) {
+    out.classList.remove('hidden'); out.innerHTML = '';
+    for (const [k, label] of [['mp3', '下载 MP3'], ['wav', '无损 WAV'], ['vocal', '纯人声']]) {
+      if (!run.outputs[k]) continue;
+      const a = document.createElement('a');
+      a.href = '/api/download?id=' + run.id + '&file=' + k;
+      a.innerHTML = '<button>' + label + '</button>';
+      out.appendChild(a);
+    }
+  } else if (status === 'failed') {
+    out.classList.remove('hidden');
+    out.innerHTML = '<div style="color:var(--err);font-size:13px">✗ ' + (run.error || '未知错误') + '</div>';
+  } else out.classList.add('hidden');
+}
+async function loadHistory() {
+  const r = await fetch('/api/status').then((x) => x.json());
+  const box = $('#history');
+  if (!r.ok || !r.runs.length) { box.className = 'empty'; box.textContent = '还没有任务'; return; }
+  box.className = '';
+  box.innerHTML = '';
+  for (const run of r.runs) {
+    const d = document.createElement('div'); d.className = 'cand';
+    d.innerHTML = `<div>${run.title || run.id} <span class="badge ${run.status}" style="margin-left:8px">${run.status}</span></div>
+      <div class="meta">${run.id} · ${(run.createdAt || '').slice(0, 19).replace('T', ' ')}</div>`;
+    d.onclick = () => {
+      currentRun = run.id; startPoll(); toast('正在查看 ' + run.id);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    box.appendChild(d);
+  }
+}
+
+// ---- 环境检测
+const CAT_ORDER = ['运行时', '代码', '模型', '音色'];
+let dlPollTimer = null;
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+async function loadEnv() {
+  const box = $('#envList');
+  try {
+    const r = await fetch('/api/env/check').then((x) => x.json());
+    if (!r.ok) { box.innerHTML = '<div class="empty">检测失败：' + esc(r.error) + '</div>'; return; }
+    const s = r.sys, sm = r.summary;
+    $('#envSys').innerHTML =
+      `系统 <b>${esc(s.os)} ${esc(s.arch)}</b> · Node <b>${esc(s.node)}</b><br>` +
+      `显卡 <span class="gpu ${s.gpuOk ? '' : 'no'}">${s.gpu ? esc(s.gpu) : '未检测到 NVIDIA GPU（翻唱需要 CUDA 显卡）'}</span>`;
+    $('#envScore').innerHTML = `依赖就绪 <b>${sm.ready}</b> / ${sm.total} · ${sm.percent}%` + (sm.allReady ? ' · <span style="color:var(--accent2)">全部就绪，可以开始翻唱</span>' : '');
+    $('#envBarWrap').style.display = 'block';
+    $('#envBar').style.width = sm.percent + '%';
+    let html = '';
+    for (const cat of CAT_ORDER) {
+      const items = r.items.filter((i) => i.cat === cat);
+      if (!items.length) continue;
+      html += `<div class="env-cat">${cat}</div>`;
+      for (const it of items) {
+        const btn = it.ok ? '' :
+          (it.canDownload
+            ? `<button class="ghost small" data-dl="${it.key}">下载</button>`
+            : (it.link ? `<a href="${esc(it.link)}" target="_blank" rel="noopener"><button class="ghost small">打开下载页</button></a>` : ''));
+        const sz = it.ok ? esc(it.sizeText) : ('需 ' + esc(it.needText));
+        html += `<div class="env-row ${it.ok ? 'ok' : 'miss'}">
+          <div class="ico">${it.ok ? '✓' : '✗'}</div>
+          <div class="nm"><div class="t">${esc(it.name)}${it.optional && !it.ok ? '（可选）' : ''}</div><div class="p">${esc(it.path)}</div></div>
+          <div class="sz">${sz}</div>
+          <div class="act">${btn}</div>
+        </div>`;
+        if (!it.ok && it.hint) html += `<div class="env-note" style="margin:0 0 4px 30px">↳ ${esc(it.hint)}</div>`;
+      }
+    }
+    box.innerHTML = html;
+    box.querySelectorAll('[data-dl]').forEach((b) => {
+      b.onclick = () => startEnvDownload(b.dataset.dl);
+    });
+  } catch (e) { box.innerHTML = '<div class="empty">检测失败：' + esc(e.message) + '</div>'; }
+}
+async function startEnvDownload(key) {
+  const box = $('#dlBox'); box.style.display = 'block'; box.textContent = '提交下载任务…';
+  const r = await fetch('/api/env/download', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keys: [key] }),
+  }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+  if (!r.ok) { box.textContent = '失败：' + (r.error || ''); return; }
+  toast('下载已开始，请在下方看进度');
+  if (dlPollTimer) clearInterval(dlPollTimer);
+  dlPollTimer = setInterval(async () => {
+    const s = await fetch('/api/env/download/status?id=' + encodeURIComponent(r.id)).then((x) => x.json()).catch(() => null);
+    if (!s || !s.ok) return;
+    box.textContent = (s.status === 'done' ? '✓ ' : s.status === 'failed' ? '✗ ' : '') +
+      `[${s.done}/${s.total}] ${s.current ? '正在下载 ' + s.current + '\n' : ''}${s.log}`;
+    box.scrollTop = box.scrollHeight;
+    if (s.status === 'done' || s.status === 'failed') {
+      clearInterval(dlPollTimer); dlPollTimer = null;
+      toast(s.status === 'done' ? '下载完成，点「重新检测」确认' : '下载失败：' + (s.error || ''));
+      if (s.status === 'done') loadEnv();
+    }
+  }, 1500);
+}
+$('#btnEnvCheck').onclick = () => { toast('重新检测中…'); loadEnv(); };
+$('#btnEnvScript').onclick = () => { window.location.href = '/api/env/script'; toast('安装脚本已开始下载'); };
+
+// ---- init
+loadVoices(); loadHistory(); loadEnv();
+fetch('/api/health').then((x) => x.json()).then((h) => {
+  if (!h.ok) toast('后端异常');
+}).catch(() => toast('连不上后端，请确认 server.mjs 正在运行'));
+</script>
+</body>
+</html>
